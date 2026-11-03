@@ -6,7 +6,7 @@
 [![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2011-0078D6?logo=windows)](https://www.microsoft.com/windows)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/YOUR_USERNAME/TaskbarFolders?include_prereleases)](https://github.com/YOUR_USERNAME/TaskbarFolders/releases)
+[![Release](https://img.shields.io/github/v/release/keyvan-alavi/TaskbarFolders?include_prereleases)](https://github.com/keyvan-alavi/TaskbarFolders/releases)
 
 ---
 
