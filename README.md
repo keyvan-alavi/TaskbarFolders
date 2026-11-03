@@ -17,17 +17,20 @@ This small tool solves that problem without any background process or tray icon.
 
 ---
 
-### Features (v0.1.0-beta)
+### Features (v0.2.0-beta)
 
 - Create unlimited folders
 - Drag & drop `.exe` and `.lnk` files
-- One-time pin to taskbar (manual, because Windows has no public API)
+- **Custom folder icons**: Automatic grid / Emoji / Custom image (PNG, ICO, JPG)
+- **Flexible layout**: 1–4 columns (list view or icon grid)
+- Option to show / hide app names in grid view
+- One-time pin to taskbar
 - Windows 11 style acrylic flyout with rounded corners
 - Dark / Light theme support (follows system)
 - Launch as normal user or as Administrator (right-click or `Shift` + `Enter`)
 - Keyboard navigation (Arrow keys, Enter, Esc)
 - Almost zero RAM usage when idle (process exits after the menu closes)
-- Folder icon is auto-generated as a 2×2 grid of the apps inside
+- Error logging (`%AppData%\TaskbarFolders\error.log`) for easier troubleshooting
 
 ---
 
@@ -36,6 +39,7 @@ This small tool solves that problem without any background process or tray icon.
 | Manager | Flyout |
 |---------|--------|
 | ![Manager](assets/screenshot-manager.png) | ![Flyout](assets/screenshot-flyout.png) |
+
 
 ---
 
@@ -51,9 +55,10 @@ This small tool solves that problem without any background process or tray icon.
 1. Download the latest release from the [Releases](https://github.com/keyvan-alavi/TaskbarFolders/releases) page.
 2. Put `TaskbarFolders.exe` in a **permanent** location (e.g. `C:\Tools\TaskbarFolders\`).
 3. Run it → create a folder → drag apps into it.
-4. Click **Create taskbar shortcut for this folder**.
-5. Pin the generated shortcut to the taskbar (right-click → Pin to taskbar).
-6. Click the pinned icon anytime to open the flyout.
+4. (Optional) Customize the folder icon and layout.
+5. Click **Create taskbar shortcut for this folder** / Pin.
+6. Pin the generated shortcut to the taskbar (or let the app try to pin it).
+7. Click the pinned icon anytime to open the flyout.
 
 ---
 

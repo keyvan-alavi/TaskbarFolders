@@ -1,5 +1,6 @@
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.Drawing.Text;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -66,10 +67,20 @@ static class IconUtil
 
 static class Gfx
 {
+    /// <summary>Rounded rectangle that never produces a zero-size arc (GDI+ throws "invalid parameter" for those).</summary>
     public static GraphicsPath Round(RectangleF r, float rad)
     {
-        float d = rad * 2;
         var p = new GraphicsPath();
+        if (r.Width <= 0 || r.Height <= 0) return p;
+
+        rad = Math.Min(rad, Math.Min(r.Width, r.Height) / 2f);
+        float d = rad * 2;
+        if (d < 0.5f)
+        {
+            p.AddRectangle(r);
+            return p;
+        }
+
         p.AddArc(r.X, r.Y, d, d, 180, 90);
         p.AddArc(r.Right - d, r.Y, d, d, 270, 90);
         p.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
@@ -79,7 +90,7 @@ static class Gfx
     }
 }
 
-/// <summary>Builds the .ico used by a folder's taskbar shortcut: a tinted tile with a 2x2 grid of its apps.</summary>
+/// <summary>Builds the folder icon: custom image, emoji/text on a tinted tile, or a 2x2 grid of the folder's apps.</summary>
 static class IconBuilder
 {
     public static string IcoPath(Folder f) => System.IO.Path.Combine(Config.IconsDir, f.Id + ".ico");
@@ -97,6 +108,25 @@ static class IconBuilder
         return Color.FromArgb((int)(r * 255), (int)(g * 255), (int)(b * 255));
     }
 
+    /// <summary>Loads png/jpg/bmp/ico without keeping the file locked. Returns null if unreadable.</summary>
+    public static Bitmap? LoadImage(string path)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return null;
+            if (path.EndsWith(".ico", StringComparison.OrdinalIgnoreCase))
+            {
+                using var ic = new Icon(path, new Size(256, 256));
+                return ic.ToBitmap();
+            }
+            var bytes = File.ReadAllBytes(path);
+            using var ms = new MemoryStream(bytes);
+            using var img = Image.FromStream(ms);
+            return new Bitmap(img);
+        }
+        catch { return null; }
+    }
+
     public static Bitmap Render(Folder f, int s)
     {
         var bmp = new Bitmap(s, s, PixelFormat.Format32bppArgb);
@@ -106,18 +136,63 @@ static class IconBuilder
         g.PixelOffsetMode = PixelOffsetMode.HighQuality;
         g.Clear(Color.Transparent);
 
+        if (f.IconKind == "file" && DrawImageFile(g, f.IconValue, s)) return bmp;
+
+        DrawTile(g, f, s);
+        if (f.IconKind == "emoji" && !string.IsNullOrWhiteSpace(f.IconValue)) DrawGlyph(g, f.IconValue, s);
+        else DrawAppGrid(g, f, s);
+        return bmp;
+    }
+
+    static bool DrawImageFile(Graphics g, string path, int s)
+    {
+        using var img = LoadImage(path);
+        if (img == null || img.Width <= 0 || img.Height <= 0) return false;
+
+        float sc = Math.Min((float)s / img.Width, (float)s / img.Height);
+        float w = img.Width * sc, h = img.Height * sc;
+        var dest = Rectangle.Round(new RectangleF((s - w) / 2f, (s - h) / 2f, w, h));
+
+        using var ia = new ImageAttributes();
+        ia.SetWrapMode(WrapMode.TileFlipXY); // avoids a faint edge halo when scaling
+        g.DrawImage(img, dest, 0, 0, img.Width, img.Height, GraphicsUnit.Pixel, ia);
+        return true;
+    }
+
+    static void DrawTile(Graphics g, Folder f, int s)
+    {
         int hue = 210;
         try { hue = Convert.ToInt32(f.Id[..Math.Min(4, f.Id.Length)], 16) % 360; } catch { }
 
         var rect = new RectangleF(s * 0.03f, s * 0.03f, s * 0.94f, s * 0.94f);
-        using (var path = Gfx.Round(rect, s * 0.22f))
-        {
-            using (var br = new LinearGradientBrush(rect, Hsv(hue, 0.55, 0.60), Hsv(hue, 0.75, 0.26), 90f))
-                g.FillPath(br, path);
-            using var pen = new Pen(Color.FromArgb(70, 255, 255, 255), Math.Max(1f, s / 64f));
-            g.DrawPath(pen, path);
-        }
+        using var path = Gfx.Round(rect, s * 0.22f);
+        using (var br = new LinearGradientBrush(rect, Hsv(hue, 0.55, 0.60), Hsv(hue, 0.75, 0.26), 90f))
+            g.FillPath(br, path);
+        using var pen = new Pen(Color.FromArgb(70, 255, 255, 255), Math.Max(1f, s / 64f));
+        g.DrawPath(pen, path);
+    }
 
+    // Emoji are drawn as single-colour (white) glyphs: GDI+ cannot render colour emoji,
+    // and white-on-tile also matches the other folder icons. Use an image file for full colour.
+    static void DrawGlyph(Graphics g, string text, int s)
+    {
+        text = text.Replace("️", "").Trim();
+        if (text.Length == 0) return;
+
+        float px = s * (text.Length <= 2 ? 0.50f : text.Length <= 4 ? 0.36f : 0.26f);
+        using var font = new Font("Segoe UI Emoji", px, FontStyle.Regular, GraphicsUnit.Pixel);
+        using var sf = new StringFormat(StringFormat.GenericTypographic)
+        {
+            Alignment = StringAlignment.Center,
+            LineAlignment = StringAlignment.Center
+        };
+        using var br = new SolidBrush(Color.FromArgb(240, 255, 255, 255));
+        g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+        g.DrawString(text, font, br, new RectangleF(0, s * 0.02f, s, s), sf);
+    }
+
+    static void DrawAppGrid(Graphics g, Folder f, int s)
+    {
         var icons = f.Items.Take(4).Select(i => IconUtil.Get(i.Target)).ToList();
         if (icons.Count == 0)
         {
@@ -139,7 +214,6 @@ static class IconBuilder
                 g.DrawImage(icons[i], m + (i % 2) * (cell + gap), m + (i / 2) * (cell + gap), cell, cell);
         }
         foreach (var ic in icons) ic.Dispose();
-        return bmp;
     }
 
     public static void BuildIcon(Folder f)
