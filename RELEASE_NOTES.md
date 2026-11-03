@@ -21,11 +21,14 @@ Second public beta of Taskbar Folders.
 - Windows 11
 - [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) (x64)
 
-**How to use:**
-1. Download `TaskbarFolders.exe`
-2. Place it in a permanent folder (e.g. `C:\Tools\TaskbarFolders\`)
-3. Run the app, create folders, customize icons & layout
-4. Pin the folder to the taskbar
+### How to use
+
+1. Download `TaskbarFolders.exe` and put it in a permanent location (e.g. `C:\Tools\TaskbarFolders\`).
+2. Run the program.
+3. Create a new folder and drag your apps (`.exe` or `.lnk`) into it.
+4. Click the **Pin** / **Create taskbar shortcut** button.
+5. A folder window will open → **Right-click** on that folder → **Pin to taskbar**.
+6. From now on, just click the pinned icon on the taskbar to open the flyout menu.
 
 ---
 
@@ -45,9 +48,11 @@ Second public beta of Taskbar Folders.
 **نیازمندی‌ها:**
 - ویندوز ۱۱
 - [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) (x64)
-
 **نحوه استفاده:**
-1. فایل `TaskbarFolders.exe` را دانلود کنید
-2. آن را در یک پوشه دائمی قرار دهید
-3. برنامه را اجرا کنید، فولدر بسازید و آیکون و چیدمان را تنظیم کنید
-4. فولدر را به تسک‌بار پین کنید
+
+1. فایل `TaskbarFolders.exe` را دانلود کنید و در یک پوشه دائمی قرار دهید.
+2. برنامه را اجرا کنید.
+3. یک فولدر جدید بسازید و اپ‌ها را داخل آن بکشید.
+4. روی دکمه پین / ساخت شورتکات کلیک کنید.
+5. پنجره فولدر باز می‌شود → روی همان فولدر **کلیک‌راست** کنید و گزینه **Pin to taskbar** را بزنید.
+6. از این به بعد فقط روی آیکون پین‌شده در تسک‌بار کلیک کنید تا منو باز شود.
