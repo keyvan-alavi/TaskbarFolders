@@ -1,0 +1,48 @@
+name: Build & Pre-Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish (Release)
+        run: |
+          dotnet publish -c Release -o publish
+
+      - name: Create Pre-Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: publish/TaskbarFolders.exe
+          prerelease: true
+          generate_release_notes: true
+          body: |
+            ### Taskbar Folders ${{ github.ref_name }}
+
+            Thank you for trying the beta!
+
+            **Requirements:**
+            - Windows 11
+            - [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) (x64)
+
+            **How to use:**
+            1. Put `TaskbarFolders.exe` in a permanent folder (e.g. `C:\Tools\TaskbarFolders\`)
+            2. Run it and create your folders
+            3. Create taskbar shortcut → Pin it to the taskbar
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
