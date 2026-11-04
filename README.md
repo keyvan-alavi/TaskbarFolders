@@ -1,7 +1,7 @@
 # Taskbar Folders
 
 > Group apps into folders and pin them to the Windows 11 taskbar.  
-> Click the pinned icon → a clean acrylic flyout slides up with your apps.
+> Click the pinned icon → a clean themed flyout slides up with your apps.
 
 [![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2011-0078D6?logo=windows)](https://www.microsoft.com/windows)
@@ -17,19 +17,17 @@ This small tool solves that problem without any background process or tray icon.
 
 ---
 
-### Features (v0.2.0-beta)
+### What's new in 1.3
 
-- Create unlimited folders
-- Drag & drop `.exe` and `.lnk` files
-- **Custom folder icons**: Automatic grid / Emoji / Custom image (PNG, ICO, JPG)
-- **Flexible layout**: 1–4 columns (list view or icon grid)
-- Option to show / hide app names in grid view
-- Windows 11 style acrylic flyout with rounded corners
-- Dark / Light theme support (follows system)
-- Launch as normal user or as Administrator (right-click or `Shift` + `Enter`)
-- Keyboard navigation (Arrow keys, Enter, Esc)
-- Almost zero RAM usage when idle (process exits after the menu closes)
-- Error logging (`%AppData%\TaskbarFolders\error.log`)
+| # | Feature |
+|---|---------|
+| 1 | **Folder colours** — automatic theme colour, 12 presets or any custom colour |
+| 2 | **Add apps from the Start menu** — searchable picker + “+ Add apps” inside the menu |
+| 3 | **Drag & drop** — drop apps onto folders or between folders (Ctrl to copy) |
+| 4 | **Easier pinning** — Pin button, Drag-to-taskbar handle, drag folder row, auto “Pinned ✓” |
+| 5 | **Opening animations** — Slide+Fade, Slide, Fade, Zoom or None (per-folder override) |
+| 6 | **Themes** — Windows 11 (follows system + accent), Light, Dark, Aurora, Sunset, Forest, Midnight |
+| 7 | **Settings page** — appearance, animation, Windows integration, data folder, contact links |
 
 ---
 
@@ -39,13 +37,11 @@ This small tool solves that problem without any background process or tray icon.
 |---------|--------|
 | ![Manager](assets/screenshot-manager.png) | ![Flyout](assets/screenshot-flyout.png) |
 
-> *Add your screenshots to the `assets` folder.*
-
 ---
 
 ### Requirements
 
-- Windows 11 (recommended 22H2 or newer for acrylic backdrop)
+- Windows 11
 - [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) (x64)
 
 ---
@@ -53,12 +49,12 @@ This small tool solves that problem without any background process or tray icon.
 ### How to use
 
 1. Download `TaskbarFolders.exe` and put it in a **permanent** location (e.g. `C:\Tools\TaskbarFolders\`).
-2. Run the program.
-3. Create a new folder and drag your apps (`.exe` or `.lnk`) into it.
-4. (Optional) Customize the folder icon and layout (1–4 columns).
-5. Click the button to create the taskbar shortcut.
-6. A folder window opens → **Right-click** on that folder → **Pin to taskbar**.
-7. From now on, just click the pinned icon on the taskbar to open the flyout.
+2. Run the program → create a folder → add apps (drag & drop, Start menu picker, or “+ Add apps”).
+3. (Optional) Set folder colour, icon, layout and animation.
+4. Click **Pin to taskbar** (or drag the folder / use the drag handle).
+5. Click the pinned icon on the taskbar anytime to open the menu.
+
+> Already pinned folders from older versions keep working if the exe stays at the same path.
 
 ---
 
@@ -79,11 +75,13 @@ Output:
 
 - Website: [https://technokey.ir](https://technokey.ir)
 - Telegram: [https://t.me/Kewin_67](https://t.me/Kewin_67)
-
-Feel free to open issues or send feedback.
+- Email: key1.alavi@gmail.com
+- GitHub: [keyvan-alavi](https://github.com/keyvan-alavi)
 
 ---
 
 ### License
 
 MIT License – free to use, modify and distribute.
+
+Made with ♥ by **Keyvan Alavi**
