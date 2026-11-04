@@ -8,7 +8,7 @@
 
 Second public beta of **Taskbar Folders**.
 
-#### What's new in this version
+#### What's new
 - Custom folder icons (Automatic grid / Emoji / Custom image)
 - Flexible flyout layout: 1 to 4 columns (list or icon grid)
 - Option to show or hide app names in grid view
