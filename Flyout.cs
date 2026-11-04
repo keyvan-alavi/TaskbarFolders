@@ -14,17 +14,22 @@ public class Flyout : Form
 {
     record Row(Item Item, Bitmap Icon);
 
+    readonly Config cfg;
     readonly Folder folder;
+    readonly Palette pal;
     readonly List<Row> rows = new();
-    readonly bool dark;
     readonly float k;
-    readonly int cols, cellW, cellH, iconSz, pad, visRows, totalRows, clientW;
+    readonly int cols, stripH, pad, footerH, cellW, cellH, iconSz;
     readonly bool showNames;
-    readonly Font font, gridFont;
+    readonly Font font, gridFont, footFont;
+    readonly Point anchorPoint;
     readonly ToolTip tip = new();
-    int hover = -1, scroll = 0;
-    bool active;
+
+    int visRows, totalRows, clientW, clientH;
+    int hover = -1, scroll = 0, footerHover;
+    bool active, busy, closing, dragging, animating;
     Point finalLoc, slide;
+    Rectangle addRect, manageRect;
 
     int S(int v) => (int)Math.Round(v * k);
 
@@ -42,19 +47,24 @@ public class Flyout : Form
         return false;
     }
 
-    public Flyout(Folder f)
+    public Flyout(Config config, Folder f)
     {
+        cfg = config;
         folder = f;
-        dark = Theme.IsDark();
-        var cur = Cursor.Position;
-        k = Native.DpiAt(cur) / 96f;
+        pal = ThemeManager.P;
+        anchorPoint = Cursor.Position;
+        k = Native.DpiAt(anchorPoint) / 96f;
 
         AutoScaleMode = AutoScaleMode.None;
         pad = S(8);
+        stripH = S(3);
+        footerH = S(40);
         cols = Math.Clamp(f.Columns, 1, 4);
         showNames = cols == 1 || f.ShowNames;
 
-        foreach (var it in f.Items) rows.Add(new Row(it, IconUtil.Get(it.Target)));
+        font = new Font("Segoe UI", 10f);
+        gridFont = new Font("Segoe UI", 9f);
+        footFont = new Font("Segoe UI Semibold", 9f);
 
         if (cols == 1)
         {
@@ -69,57 +79,21 @@ public class Flyout : Form
             cellH = showNames ? iconSz + S(48) : iconSz + S(24);
         }
 
-        totalRows = Math.Max(1, (rows.Count + cols - 1) / cols);
-        visRows = Math.Clamp(totalRows, 1, cols == 1 ? 12 : showNames ? 6 : 8);
-        clientW = rows.Count == 0 ? S(260) : Math.Max(S(160), 2 * pad + cols * cellW);
-
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         TopMost = true;
+        Text = "Taskbar Folders — " + f.Name;
         StartPosition = FormStartPosition.Manual;
         DoubleBuffered = true;
         KeyPreview = true;
-        BackColor = Color.Black; // black = transparent over the acrylic backdrop
-        font = new Font("Segoe UI", 10f);
-        gridFont = new Font("Segoe UI", 9f);
-        ClientSize = new Size(clientW, 2 * pad + visRows * cellH);
+        BackColor = pal.Panel;
+        Font = font;
+        AllowDrop = true;
+        tip.InitialDelay = 350;
 
-        Place(cur);
-    }
-
-    void Place(Point cur)
-    {
-        var scr = Screen.FromPoint(cur);
-        var b = scr.Bounds; var wa = scr.WorkingArea;
-        int gap = S(8), w = Width, h = Height, x, y;
-        int slideDist = S(18);
-
-        if (wa.Bottom < b.Bottom || wa == b) // taskbar at bottom (or auto-hidden)
-        {
-            x = Math.Clamp(cur.X - w / 2, wa.Left + gap, wa.Right - w - gap);
-            y = wa.Bottom < b.Bottom ? wa.Bottom - h - gap : b.Bottom - S(56) - h - gap;
-            slide = new Point(0, slideDist);
-        }
-        else if (wa.Top > b.Top)
-        {
-            x = Math.Clamp(cur.X - w / 2, wa.Left + gap, wa.Right - w - gap);
-            y = wa.Top + gap;
-            slide = new Point(0, -slideDist);
-        }
-        else if (wa.Left > b.Left)
-        {
-            x = wa.Left + gap;
-            y = Math.Clamp(cur.Y - h / 2, wa.Top + gap, wa.Bottom - h - gap);
-            slide = new Point(-slideDist, 0);
-        }
-        else
-        {
-            x = wa.Right - w - gap;
-            y = Math.Clamp(cur.Y - h / 2, wa.Top + gap, wa.Bottom - h - gap);
-            slide = new Point(slideDist, 0);
-        }
-        finalLoc = new Point(x, y);
-        Location = new Point(x + slide.X, y + slide.Y);
+        foreach (var it in f.Items) rows.Add(new Row(it, IconUtil.Get(it.Target)));
+        Relayout(f.Items.Count == 0 ? S(250) : 0);
+        Place();
     }
 
     protected override CreateParams CreateParams
@@ -127,7 +101,8 @@ public class Flyout : Form
         get
         {
             var cp = base.CreateParams;
-            cp.ExStyle |= 0x80; // WS_EX_TOOLWINDOW: hidden from Alt-Tab
+            cp.ExStyle |= 0x80;              // WS_EX_TOOLWINDOW: hidden from Alt-Tab
+            cp.ClassStyle |= 0x20000;        // CS_DROPSHADOW
             return cp;
         }
     }
@@ -135,8 +110,99 @@ public class Flyout : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        if (!Native.ApplyBackdrop(Handle, dark))
-            BackColor = dark ? Color.FromArgb(32, 32, 32) : Color.FromArgb(243, 243, 243); // older builds: solid fallback
+        Native.Round(Handle);
+        Native.SetDarkTitle(Handle, pal.Dark);
+    }
+
+    protected override void OnResize(EventArgs e)
+    {
+        base.OnResize(e);
+        using var path = Gfx.Round(new RectangleF(0, 0, Width, Height), S(12));
+        var old = Region;
+        Region = new Region(path);
+        old?.Dispose();
+    }
+
+    // ---------------------------------------------------------------- layout
+
+    void Relayout(int minWidth)
+    {
+        totalRows = Math.Max(1, (rows.Count + cols - 1) / cols);
+        int maxRows = cols == 1 ? 12 : showNames ? 6 : 8;
+        int screenLimit = Math.Max(3, (int)((Screen.FromPoint(anchorPoint).WorkingArea.Height * 0.82 - footerH - 2 * pad) / (double)cellH));
+        maxRows = Math.Min(maxRows, screenLimit);
+        visRows = Math.Clamp(totalRows, 1, Math.Max(1, maxRows));
+        scroll = 0;
+
+        int contentW = rows.Count == 0 ? S(250) : Math.Max(S(200), 2 * pad + cols * cellW);
+        clientW = Math.Max(minWidth, contentW);
+        clientH = stripH + pad + visRows * cellH + S(6) + footerH;
+
+        ClientSize = new Size(clientW, clientH);
+        ComputeFooter();
+    }
+
+    void Place()
+    {
+        var scr = Screen.FromPoint(anchorPoint);
+        var b = scr.Bounds;
+        var wa = scr.WorkingArea;
+        int gap = S(8), w = Width, h = Height, x, y;
+        int slideDist = S(16);
+        slide = Point.Empty;
+
+        if (wa.Bottom < b.Bottom || wa == b) // taskbar at bottom (or auto-hidden)
+        {
+            x = Math.Clamp(anchorPoint.X - w / 2, wa.Left + gap, wa.Right - w - gap);
+            y = wa.Bottom < b.Bottom ? wa.Bottom - h - gap : b.Bottom - S(56) - h - gap;
+            slide = new Point(0, slideDist);
+        }
+        else if (wa.Top > b.Top)
+        {
+            x = Math.Clamp(anchorPoint.X - w / 2, wa.Left + gap, wa.Right - w - gap);
+            y = wa.Top + gap;
+            slide = new Point(0, -slideDist);
+        }
+        else if (wa.Left > b.Left)
+        {
+            x = wa.Left + gap;
+            y = Math.Clamp(anchorPoint.Y - h / 2, wa.Top + gap, wa.Bottom - h - gap);
+            slide = new Point(-slideDist, 0);
+        }
+        else
+        {
+            x = wa.Right - w - gap;
+            y = Math.Clamp(anchorPoint.Y - h / 2, wa.Top + gap, wa.Bottom - h - gap);
+            slide = new Point(slideDist, 0);
+        }
+
+        finalLoc = new Point(x, y);
+        Location = slide.IsEmpty ? finalLoc : new Point(x + slide.X, y + slide.Y);
+    }
+
+    void ComputeFooter()
+    {
+        int footerTop = clientH - footerH;
+        int btnH = S(26);
+        int y = footerTop + (footerH - btnH) / 2;
+
+        var addText = "+  Add apps";
+        var manageText = "Manage";
+        int addW = TextRenderer.MeasureText(addText, footFont).Width + S(18);
+        int manW = TextRenderer.MeasureText(manageText, footFont).Width + S(18);
+        addRect = new Rectangle(pad + S(2), y, addW, btnH);
+        manageRect = new Rectangle(clientW - pad - manW - S(2), y, manW, btnH);
+    }
+
+    // ---------------------------------------------------------------- animation
+
+    string AnimKind
+    {
+        get
+        {
+            var id = string.IsNullOrWhiteSpace(folder.Animation) ? cfg.Settings.Animation : folder.Animation;
+            return string.IsNullOrWhiteSpace(id) ? "slidefade" : id;
+        }
     }
 
     protected override void OnShown(EventArgs e)
@@ -145,24 +211,81 @@ public class Flyout : Form
         Activate();
         Native.SetForegroundWindow(Handle);
         active = true;
+        ComputeFooter();
 
-        var sw = Stopwatch.StartNew();
-        var t = new System.Windows.Forms.Timer { Interval = 8 };
-        t.Tick += (_, _) =>
+        string kind = AnimKind;
+        int ms = Math.Clamp(cfg.Settings.AnimationMs, 80, 600);
+        if (kind == "none" || ms <= 0)
         {
-            if (IsDisposed) { t.Stop(); t.Dispose(); return; }
-            double p = Math.Min(1, sw.ElapsedMilliseconds / 170.0);
-            double ease = 1 - Math.Pow(1 - p, 3);
-            Location = new Point(finalLoc.X + (int)(slide.X * (1 - ease)), finalLoc.Y + (int)(slide.Y * (1 - ease)));
-            if (p >= 1) { t.Stop(); t.Dispose(); }
+            Invalidate();
+            return;
+        }
+
+        animating = true;
+        var sw = Stopwatch.StartNew();
+        var startSize = new Size((int)(clientW * 0.90), (int)(clientH * 0.90));
+        var startLoc = new Point(finalLoc.X + (clientW - startSize.Width) / 2,
+            finalLoc.Y + (clientH - startSize.Height) / 2);
+
+        if (kind is "zoom")
+        {
+            Size = startSize;
+            Location = startLoc;
+            Opacity = 0.0;
+        }
+        else if (kind is "fade")
+        {
+            Opacity = 0.0;
+        }
+
+        var timer = new System.Windows.Forms.Timer { Interval = 8 };
+        timer.Tick += (_, _) =>
+        {
+            if (IsDisposed) { timer.Stop(); timer.Dispose(); return; }
+            double t = Math.Min(1, sw.Elapsed.TotalMilliseconds / ms);
+            double e = 1 - Math.Pow(1 - t, 3);
+
+            if (kind is "slide" or "slidefade")
+            {
+                Location = new Point(finalLoc.X + (int)(slide.X * (1 - e)),
+                    finalLoc.Y + (int)(slide.Y * (1 - e)));
+                if (kind == "slidefade") Opacity = e;
+            }
+            else if (kind == "fade")
+            {
+                Opacity = e;
+            }
+            else if (kind == "zoom")
+            {
+                int w = (int)(startSize.Width + (clientW - startSize.Width) * e);
+                int h = (int)(startSize.Height + (clientH - startSize.Height) * e);
+                Size = new Size(w, h);
+                Location = new Point(finalLoc.X + (clientW - w) / 2, finalLoc.Y + (clientH - h) / 2);
+                Opacity = e;
+            }
+
+            if (t >= 1)
+            {
+                timer.Stop();
+                timer.Dispose();
+                Opacity = 1.0;
+                Size = new Size(clientW, clientH);
+                Location = finalLoc;
+                animating = false;
+                Invalidate();
+            }
         };
-        t.Start();
+        timer.Start();
     }
 
     protected override void OnDeactivate(EventArgs e)
     {
         base.OnDeactivate(e);
-        if (active) Close();
+        if (active && !busy && !closing)
+        {
+            closing = true;
+            Close();
+        }
     }
 
     protected override void OnFormClosed(FormClosedEventArgs e)
@@ -172,30 +295,16 @@ public class Flyout : Form
         foreach (var r in rows) r.Icon.Dispose();
         font.Dispose();
         gridFont.Dispose();
+        footFont.Dispose();
         base.OnFormClosed(e);
     }
 
-    // ---------- layout helpers ----------
+    // ---------------------------------------------------------------- painting
 
-    // Left edge of the cell grid; centres narrow grids inside the window.
-    int GridX => (clientW - cols * cellW) / 2;
-
-    Rectangle CellRect(int idx)
+    protected override void OnPaintBackground(PaintEventArgs e)
     {
-        int r = idx / cols - scroll, c = idx % cols;
-        return new Rectangle(GridX + c * cellW, pad + r * cellH, cellW, cellH);
+        // Painted in OnPaint so the rounded background and gradient stay in one pass.
     }
-
-    int HitTest(Point p)
-    {
-        if (p.X < GridX || p.Y < pad) return -1;
-        int c = (p.X - GridX) / cellW, r = (p.Y - pad) / cellH;
-        if (c >= cols || r >= visRows) return -1;
-        int idx = (r + scroll) * cols + c;
-        return idx < rows.Count ? idx : -1;
-    }
-
-    // ---------- painting ----------
 
     protected override void OnPaint(PaintEventArgs e)
     {
@@ -204,7 +313,19 @@ public class Flyout : Form
         g.InterpolationMode = InterpolationMode.HighQualityBicubic;
         g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
 
-        var fg = dark ? Color.White : Color.FromArgb(28, 28, 28);
+        float scale = clientW <= 0 ? 1f : ClientSize.Width / (float)clientW;
+        g.ScaleTransform(scale, scale);
+
+        using (var bg = new LinearGradientBrush(new Rectangle(0, 0, clientW, Math.Max(1, clientH)),
+                   pal.Dark ? ColorEx.Blend(pal.Panel, Color.Black, 0.08) : ColorEx.Blend(pal.Panel, Color.White, 0.35),
+                   pal.Panel, 90f))
+            g.FillRectangle(bg, 0, 0, clientW, clientH);
+
+        // Folder colour strip makes every menu instantly recognisable.
+        using (var strip = new SolidBrush(ThemeManager.FolderColor(folder)))
+            g.FillRectangle(strip, 0, 0, clientW, stripH);
+
+        var fg = pal.Text;
         using var textBrush = new SolidBrush(fg);
         using var listFmt = new StringFormat
         {
@@ -220,54 +341,119 @@ public class Flyout : Form
             FormatFlags = StringFormatFlags.LineLimit
         };
 
+        int rowsTop = stripH + pad;
         if (rows.Count == 0)
         {
-            var r = new RectangleF(pad + S(12), pad, clientW - 2 * pad - S(24), cellH);
-            using var dim = new SolidBrush(Color.FromArgb(170, fg));
-            g.DrawString("Empty folder. Click to add apps.", font, dim, r, listFmt);
-            return;
+            var r = new RectangleF(pad + S(10), rowsTop + S(4), clientW - 2 * pad - S(20), cellH);
+            using var dim = new SolidBrush(Color.FromArgb(190, fg));
+            g.DrawString("Empty folder", font, dim, r, listFmt);
+            using var hintFont = new Font("Segoe UI", 9f);
+            using var hintBrush = new SolidBrush(pal.SubText);
+            g.DrawString("Use “+ Add apps” or drop shortcuts here.", hintFont, hintBrush,
+                new RectangleF(r.X, r.Y + S(28), r.Width, cellH), listFmt);
         }
-
-        int first = scroll * cols;
-        int end = Math.Min(rows.Count, (scroll + visRows) * cols);
-        for (int i = first; i < end; i++)
+        else
         {
-            var cell = CellRect(i);
+            int first = scroll * cols;
+            int end = Math.Min(rows.Count, (scroll + visRows) * cols);
+            var hoverTint = ColorEx.Blend(pal.Panel, ThemeManager.FolderColor(folder), pal.Dark ? 0.26 : 0.18);
 
-            if (i == hover)
+            for (int i = first; i < end; i++)
             {
-                using var path = Gfx.Round(Rectangle.Inflate(cell, -S(2), -S(2)), S(6));
-                using var hb = new SolidBrush(dark ? Color.FromArgb(34, 255, 255, 255) : Color.FromArgb(24, 0, 0, 0));
-                g.FillPath(hb, path);
-            }
+                var cell = CellRect(i);
 
-            if (cols == 1)
-            {
-                g.DrawImage(rows[i].Icon, new Rectangle(cell.X + S(12), cell.Y + (cell.Height - iconSz) / 2, iconSz, iconSz));
-                var tr = new RectangleF(cell.X + S(12) + iconSz + S(12), cell.Y, cell.Width - S(12) - iconSz - S(24), cell.Height);
-                g.DrawString(rows[i].Item.Name, font, textBrush, tr, listFmt);
-            }
-            else
-            {
-                int ix = cell.X + (cell.Width - iconSz) / 2;
-                int iy = showNames ? cell.Y + S(8) : cell.Y + (cell.Height - iconSz) / 2;
-                g.DrawImage(rows[i].Icon, new Rectangle(ix, iy, iconSz, iconSz));
-
-                if (showNames)
+                if (i == hover)
                 {
-                    float ty = iy + iconSz + S(4);
-                    var tr = new RectangleF(cell.X + S(4), ty, cell.Width - S(8), cell.Bottom - ty - S(4));
-                    g.DrawString(rows[i].Item.Name, gridFont, textBrush, tr, gridFmt);
+                    using var path = Gfx.Round(Rectangle.Inflate(cell, -S(2), -S(2)), S(7));
+                    using var hb = new SolidBrush(hoverTint);
+                    g.FillPath(hb, path);
+                }
+
+                if (cols == 1)
+                {
+                    g.DrawImage(rows[i].Icon, new Rectangle(cell.X + S(12), cell.Y + (cell.Height - iconSz) / 2, iconSz, iconSz));
+                    var tr = new RectangleF(cell.X + S(12) + iconSz + S(12), cell.Y,
+                        cell.Width - S(12) - iconSz - S(24), cell.Height);
+                    g.DrawString(rows[i].Item.Name, font, textBrush, tr, listFmt);
+                }
+                else
+                {
+                    int ix = cell.X + (cell.Width - iconSz) / 2;
+                    int iy = showNames ? cell.Y + S(8) : cell.Y + (cell.Height - iconSz) / 2;
+                    g.DrawImage(rows[i].Icon, new Rectangle(ix, iy, iconSz, iconSz));
+
+                    if (showNames)
+                    {
+                        float ty = iy + iconSz + S(4);
+                        var tr = new RectangleF(cell.X + S(4), ty, cell.Width - S(8), cell.Bottom - ty - S(4));
+                        using var nameBr = new SolidBrush(fg);
+                        g.DrawString(rows[i].Item.Name, gridFont, nameBr, tr, gridFmt);
+                    }
                 }
             }
         }
+
+        // ---------- footer ----------
+        int footerTop = clientH - footerH;
+        using (var line = new Pen(Color.FromArgb(70, pal.Border), 1f))
+            g.DrawLine(line, pad, footerTop, clientW - pad, footerTop);
+
+        DrawFooterButton(g, addRect, "+  Add apps", footerHover == 1);
+        DrawFooterButton(g, manageRect, "Manage", footerHover == 2);
+
+        if (dragging)
+        {
+            using var border = new Pen(pal.Accent, Math.Max(2f, S(2))) { DashStyle = DashStyle.Dash };
+            var r = RectangleF.Inflate(new RectangleF(1, 1, clientW - 2, clientH - 2), -2, -2);
+            using var path = Gfx.Round(r, S(11));
+            g.DrawPath(border, path);
+
+            var msg = "Drop to add apps";
+            var size = TextRenderer.MeasureText(msg, footFont);
+            var box = new Rectangle((clientW - size.Width - S(28)) / 2, footerTop - S(38), size.Width + S(28), S(28));
+            using var fill = new SolidBrush(pal.Accent);
+            using var path2 = Gfx.Round(box, S(8));
+            g.FillPath(fill, path2);
+            TextRenderer.DrawText(g, msg, footFont, box, pal.OnAccent,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        }
     }
 
-    // ---------- mouse / keyboard ----------
+    void DrawFooterButton(Graphics g, Rectangle r, string text, bool hot)
+    {
+        if (hot)
+        {
+            using var path = Gfx.Round(r, S(6));
+            using var b = new SolidBrush(pal.Hover);
+            g.FillPath(b, path);
+        }
+        TextRenderer.DrawText(g, text, footFont, r,
+            hot ? pal.Text : pal.SubText,
+            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+    }
+
+    // ---------------------------------------------------------------- helpers
+
+    int GridX => (clientW - cols * cellW) / 2;
+    int RowsTop => stripH + pad;
+
+    Rectangle CellRect(int idx)
+    {
+        int r = idx / cols - scroll, c = idx % cols;
+        return new Rectangle(GridX + c * cellW, RowsTop + r * cellH, cellW, cellH);
+    }
+
+    int HitTest(Point p)
+    {
+        if (p.X < GridX || p.Y < RowsTop) return -1;
+        int c = (p.X - GridX) / cellW, r = (p.Y - RowsTop) / cellH;
+        if (c >= cols || r >= visRows) return -1;
+        int idx = (r + scroll) * cols + c;
+        return idx < rows.Count ? idx : -1;
+    }
 
     void UpdateTip()
     {
-        // Grids always get a tooltip: it shows the full name when names are hidden or truncated.
         if (cols > 1 && hover >= 0)
         {
             var r = CellRect(hover);
@@ -276,17 +462,30 @@ public class Flyout : Form
         else tip.Hide(this);
     }
 
+    // ---------------------------------------------------------------- mouse / keyboard
+
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
-        int h = HitTest(e.Location);
+        if (animating) return;
+
+        int fh = addRect.Contains(e.Location) ? 1 : manageRect.Contains(e.Location) ? 2 : 0;
+        if (fh != footerHover) { footerHover = fh; Invalidate(); }
+
+        int h = fh != 0 ? -1 : HitTest(e.Location);
         if (h != hover) { hover = h; Invalidate(); UpdateTip(); }
     }
 
     protected override void OnMouseLeave(EventArgs e)
     {
         base.OnMouseLeave(e);
-        if (hover != -1) { hover = -1; Invalidate(); tip.Hide(this); }
+        if (hover != -1 || footerHover != 0)
+        {
+            hover = -1;
+            footerHover = 0;
+            Invalidate();
+            tip.Hide(this);
+        }
     }
 
     protected override void OnMouseWheel(MouseEventArgs e)
@@ -301,7 +500,12 @@ public class Flyout : Form
     protected override void OnMouseClick(MouseEventArgs e)
     {
         base.OnMouseClick(e);
-        if (rows.Count == 0) { OpenManager(); return; }
+        if (animating) return;
+
+        if (addRect.Contains(e.Location)) { AddFromStartMenu(); return; }
+        if (manageRect.Contains(e.Location)) { OpenManager(); return; }
+
+        if (rows.Count == 0) { AddFromStartMenu(); return; }
         int i = HitTest(e.Location);
         if (i < 0) return;
         if (e.Button == MouseButtons.Left) Launch(i, false);
@@ -354,4 +558,111 @@ public class Flyout : Form
         catch { }
         Close();
     }
+
+    // ---------------------------------------------------------------- add apps
+
+    void AddFromStartMenu()
+    {
+        busy = true;
+        try
+        {
+            using var picker = new StartMenuPicker(StartMenuScanner.Scan());
+            if (picker.ShowDialog(this) != DialogResult.OK) return;
+            if (AddItems(picker.SelectedTargets))
+            {
+                Relayout(S(250));
+                Place();
+                Invalidate();
+            }
+        }
+        catch (Exception ex) { ErrorLog.Write(ex); }
+        finally
+        {
+            busy = false;
+            Activate();
+            Native.SetForegroundWindow(Handle);
+        }
+    }
+
+    bool AddItems(IEnumerable<string> paths)
+    {
+        int added = 0;
+        foreach (var raw in paths)
+        {
+            var path = raw.Trim().Trim('"');
+            if (path.Length == 0) continue;
+            if (folder.Items.Any(i => string.Equals(i.Target, path, StringComparison.OrdinalIgnoreCase))) continue;
+
+            string name;
+            try
+            {
+                name = Directory.Exists(path)
+                    ? System.IO.Path.GetFileName(path.TrimEnd('\\', '/'))
+                    : System.IO.Path.GetFileNameWithoutExtension(path);
+            }
+            catch { name = path; }
+            if (string.IsNullOrWhiteSpace(name)) name = path;
+            folder.Items.Add(new Item { Name = name, Target = path });
+            added++;
+        }
+
+        if (added == 0) return false;
+
+        cfg.Save();
+        try
+        {
+            IconBuilder.BuildIcon(folder);
+            if (Pinning.IsPinned(folder)) Pinning.EnsureShortcut(folder);
+        }
+        catch (Exception ex) { ErrorLog.Write(ex); }
+
+        foreach (var r in rows) r.Icon.Dispose();
+        rows.Clear();
+        foreach (var it in folder.Items) rows.Add(new Row(it, IconUtil.Get(it.Target)));
+        UpdateTip();
+        Invalidate();
+        return true;
+    }
+
+    // ---------------------------------------------------------------- drag & drop
+
+    protected override void OnDragEnter(DragEventArgs e)
+    {
+        base.OnDragEnter(e);
+        if (e.Data?.GetDataPresent(DataFormats.FileDrop) == true)
+        {
+            e.Effect = DragDropEffects.Copy;
+            dragging = true;
+            Invalidate();
+        }
+    }
+
+    protected override void OnDragOver(DragEventArgs e)
+    {
+        base.OnDragOver(e);
+        e.Effect = e.Data?.GetDataPresent(DataFormats.FileDrop) == true ? DragDropEffects.Copy : DragDropEffects.None;
+    }
+
+    protected override void OnDragLeave(EventArgs e)
+    {
+        base.OnDragLeave(e);
+        dragging = false;
+        Invalidate();
+    }
+
+    protected override void OnDragDrop(DragEventArgs e)
+    {
+        base.OnDragDrop(e);
+        dragging = false;
+        if (e.Data?.GetData(DataFormats.FileDrop) is string[] paths)
+        {
+            if (AddItems(paths))
+            {
+                Relayout(S(250));
+                Place();
+            }
+        }
+        Invalidate();
+    }
 }
+

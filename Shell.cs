@@ -13,9 +13,39 @@ static class Native
     [DllImport("user32.dll")] static extern IntPtr MonitorFromPoint(Point pt, uint flags);
     [DllImport("shcore.dll")] static extern int GetDpiForMonitor(IntPtr hm, int type, out uint x, out uint y);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+    [DllImport("user32.dll")] public static extern bool DestroyIcon(IntPtr h);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct SHFILEINFO
+    {
+        public IntPtr hIcon;
+        public int iIcon;
+        public uint dwAttributes;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)] public string szDisplayName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)] public string szTypeName;
+    }
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    public static extern IntPtr SHGetFileInfo(string path, uint attributes, ref SHFILEINFO info, uint size, uint flags);
+
+    [DllImport("shell32.dll")]
+    public static extern void SHChangeNotify(int eventId, uint flags, IntPtr item1, IntPtr item2);
+
+    [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
+    public static extern int SetWindowTheme(IntPtr h, string? subApp, string? subId);
+
+    public static void RefreshShellIcons()
+    {
+        try { SHChangeNotify(0x08000000, 0x1000, IntPtr.Zero, IntPtr.Zero); } catch { }
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     struct Margins { public int L, R, T, B; }
+
+    public const uint SHGFI_ICON = 0x100;
+    public const uint SHGFI_LARGEICON = 0x0;
+    public const uint SHGFI_SMALLICON = 0x1;
+    public const uint SHGFI_USEFILEATTRIBUTES = 0x10;
 
     public static void SetDarkTitle(IntPtr h, bool dark)
     {
@@ -27,12 +57,17 @@ static class Native
     public static bool ApplyBackdrop(IntPtr h, bool dark)
     {
         SetDarkTitle(h, dark);
-        int corner = 2; // DWMWCP_ROUND
-        DwmSetWindowAttribute(h, 33, ref corner, 4);
+        Round(h);
         var m = new Margins { L = -1, R = -1, T = -1, B = -1 };
         DwmExtendFrameIntoClientArea(h, ref m);
         int type = 3; // DWMSBT_TRANSIENTWINDOW (acrylic)
         return DwmSetWindowAttribute(h, 38, ref type, 4) == 0;
+    }
+
+    public static void Round(IntPtr h)
+    {
+        int corner = 2; // DWMWCP_ROUND
+        DwmSetWindowAttribute(h, 33, ref corner, 4);
     }
 
     public static int DpiAt(Point p)
@@ -51,12 +86,46 @@ static class IconUtil
 {
     public static Bitmap Get(string target)
     {
+        var p = "";
         try
         {
-            var p = Environment.ExpandEnvironmentVariables(target);
+            p = Environment.ExpandEnvironmentVariables(target ?? "");
+            if (p.EndsWith(".ico", StringComparison.OrdinalIgnoreCase) && File.Exists(p))
+            {
+                using var ico = new Icon(p, 48, 48);
+                return ico.ToBitmap();
+            }
+
+            if (p.Length > 0)
+            {
+                var info = new Native.SHFILEINFO();
+                var ok = Native.SHGetFileInfo(p, 0, ref info, (uint)Marshal.SizeOf<Native.SHFILEINFO>(),
+                    Native.SHGFI_ICON | Native.SHGFI_LARGEICON);
+                if (ok != IntPtr.Zero && info.hIcon != IntPtr.Zero)
+                {
+                    try
+                    {
+                        using var ic = Icon.FromHandle(info.hIcon);
+                        return ic.ToBitmap();
+                    }
+                    finally { Native.DestroyIcon(info.hIcon); }
+                }
+            }
+
             if (File.Exists(p))
             {
                 using var ic = Icon.ExtractAssociatedIcon(p);
+                if (ic != null) return ic.ToBitmap();
+            }
+        }
+        catch { }
+
+        try
+        {
+            var exe = Environment.ProcessPath;
+            if (!string.IsNullOrEmpty(exe) && File.Exists(exe))
+            {
+                using var ic = Icon.ExtractAssociatedIcon(exe);
                 if (ic != null) return ic.ToBitmap();
             }
         }
@@ -88,25 +157,22 @@ static class Gfx
         p.CloseFigure();
         return p;
     }
+
+    public static void DrawShadow(Graphics g, RectangleF r, float radius, int alpha = 40)
+    {
+        for (int i = 3; i >= 1; i--)
+        {
+            using var p = Round(RectangleF.Inflate(r, i, i), radius + i);
+            using var b = new SolidBrush(Color.FromArgb(alpha / (i + 2), 0, 0, 0));
+            g.FillPath(b, p);
+        }
+    }
 }
 
 /// <summary>Builds the folder icon: custom image, emoji/text on a tinted tile, or a 2x2 grid of the folder's apps.</summary>
 static class IconBuilder
 {
     public static string IcoPath(Folder f) => System.IO.Path.Combine(Config.IconsDir, f.Id + ".ico");
-
-    static Color Hsv(double h, double s, double v)
-    {
-        int hi = (int)(h / 60) % 6;
-        double f = h / 60 - Math.Floor(h / 60);
-        double p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
-        var (r, g, b) = hi switch
-        {
-            0 => (v, t, p), 1 => (q, v, p), 2 => (p, v, t),
-            3 => (p, q, v), 4 => (t, p, v), _ => (v, p, q)
-        };
-        return Color.FromArgb((int)(r * 255), (int)(g * 255), (int)(b * 255));
-    }
 
     /// <summary>Loads png/jpg/bmp/ico without keeping the file locked. Returns null if unreadable.</summary>
     public static Bitmap? LoadImage(string path)
@@ -161,14 +227,21 @@ static class IconBuilder
 
     static void DrawTile(Graphics g, Folder f, int s)
     {
-        int hue = 210;
-        try { hue = Convert.ToInt32(f.Id[..Math.Min(4, f.Id.Length)], 16) % 360; } catch { }
-
+        var c = ThemeManager.FolderColor(f);
         var rect = new RectangleF(s * 0.03f, s * 0.03f, s * 0.94f, s * 0.94f);
-        using var path = Gfx.Round(rect, s * 0.22f);
-        using (var br = new LinearGradientBrush(rect, Hsv(hue, 0.55, 0.60), Hsv(hue, 0.75, 0.26), 90f))
+        using var path = Gfx.Round(rect, s * 0.23f);
+
+        var top = c.Lighten(0.20);
+        var bottom = c.Darken(0.42);
+        using (var br = new LinearGradientBrush(rect, top, bottom, 90f))
             g.FillPath(br, path);
-        using var pen = new Pen(Color.FromArgb(70, 255, 255, 255), Math.Max(1f, s / 64f));
+
+        // Soft highlight across the top half, like Windows 11 icon tiles.
+        using (var hp = Gfx.Round(new RectangleF(rect.X, rect.Y, rect.Width, rect.Height * 0.52f), s * 0.2f))
+        using (var hb = new LinearGradientBrush(rect, Color.FromArgb(70, 255, 255, 255), Color.FromArgb(0, 255, 255, 255), 90f))
+            g.FillPath(hb, hp);
+
+        using var pen = new Pen(Color.FromArgb(72, 255, 255, 255), Math.Max(1f, s / 64f));
         g.DrawPath(pen, path);
     }
 
@@ -196,7 +269,7 @@ static class IconBuilder
         var icons = f.Items.Take(4).Select(i => IconUtil.Get(i.Target)).ToList();
         if (icons.Count == 0)
         {
-            using var white = new SolidBrush(Color.FromArgb(225, 255, 255, 255));
+            using var white = new SolidBrush(Color.FromArgb(235, 255, 255, 255));
             using var tab = Gfx.Round(new RectangleF(s * 0.22f, s * 0.27f, s * 0.26f, s * 0.14f), s * 0.03f);
             using var body = Gfx.Round(new RectangleF(s * 0.22f, s * 0.34f, s * 0.56f, s * 0.38f), s * 0.05f);
             g.FillPath(white, tab);
@@ -219,7 +292,7 @@ static class IconBuilder
     public static void BuildIcon(Folder f)
     {
         Directory.CreateDirectory(Config.IconsDir);
-        int[] sizes = { 16, 32, 48, 256 };
+        int[] sizes = { 16, 24, 32, 48, 64, 256 };
         var pngs = new List<byte[]>();
         foreach (var s in sizes)
         {
