@@ -37,6 +37,8 @@ This small tool solves that problem without any background process or tray icon.
 |---------|--------|
 | ![Manager](assets/screenshot-manager.png) | ![Flyout](assets/screenshot-flyout.png) |
 
+> *Add your screenshots to the `assets` folder.*
+
 ---
 
 ### Requirements
