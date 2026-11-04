@@ -24,13 +24,12 @@ This small tool solves that problem without any background process or tray icon.
 - **Custom folder icons**: Automatic grid / Emoji / Custom image (PNG, ICO, JPG)
 - **Flexible layout**: 1–4 columns (list view or icon grid)
 - Option to show / hide app names in grid view
-- One-time pin to taskbar
 - Windows 11 style acrylic flyout with rounded corners
 - Dark / Light theme support (follows system)
 - Launch as normal user or as Administrator (right-click or `Shift` + `Enter`)
 - Keyboard navigation (Arrow keys, Enter, Esc)
 - Almost zero RAM usage when idle (process exits after the menu closes)
-- Error logging (`%AppData%\TaskbarFolders\error.log`) for easier troubleshooting
+- Error logging (`%AppData%\TaskbarFolders\error.log`)
 
 ---
 
@@ -39,7 +38,6 @@ This small tool solves that problem without any background process or tray icon.
 | Manager | Flyout |
 |---------|--------|
 | ![Manager](assets/screenshot-manager.png) | ![Flyout](assets/screenshot-flyout.png) |
-
 
 ---
 
@@ -52,13 +50,13 @@ This small tool solves that problem without any background process or tray icon.
 
 ### How to use
 
-1. Download the latest release from the [Releases](https://github.com/keyvan-alavi/TaskbarFolders/releases) page.
-2. Put `TaskbarFolders.exe` in a **permanent** location (e.g. `C:\Tools\TaskbarFolders\`).
-3. Run it → create a folder → drag apps into it.
-4. (Optional) Customize the folder icon and layout.
-5. Click **Create taskbar shortcut for this folder** / Pin.
-6. Pin the generated shortcut to the taskbar (or let the app try to pin it).
-7. Click the pinned icon anytime to open the flyout.
+1. Download `TaskbarFolders.exe` and put it in a **permanent** location (e.g. `C:\Tools\TaskbarFolders\`).
+2. Run the program.
+3. Create a new folder and drag your apps (`.exe` or `.lnk`) into it.
+4. (Optional) Customize the folder icon and layout (1–4 columns).
+5. Click the button to create the taskbar shortcut.
+6. A folder window opens → **Right-click** on that folder → **Pin to taskbar**.
+7. From now on, just click the pinned icon on the taskbar to open the flyout.
 
 ---
 
