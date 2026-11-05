@@ -398,20 +398,20 @@ class PinHelper : Form
         var title = new Label
         {
             Left = 136, Top = 22, Width = 396, Height = 28,
-            Text = "Drag this icon onto the taskbar",
+            Text = "Pin this folder to the taskbar",
             Font = new Font("Segoe UI Semibold", 12.5f)
         };
         var msg = new Label
         {
             Left = 136, Top = 56, Width = 396, Height = 64,
-            Text = "Windows 11 doesn't let apps pin themselves, but one gesture is enough: " +
-                   "drag the icon onto an empty spot on the taskbar.",
+            Text = "The shortcut is already selected in the Explorer window. " +
+                   "Right-click it → Show more options → Pin to taskbar.",
             ForeColor = p.SubText
         };
         var alt = new Label
         {
             Left = 136, Top = 124, Width = 396, Height = 24,
-            Text = "Or: right-click the shortcut › Show more options › Pin to taskbar.",
+            Text = "Or drag the icon on the left onto an empty spot on the taskbar.",
             ForeColor = p.SubText, Font = new Font("Segoe UI", 8.5f)
         };
         status = new Label
@@ -432,7 +432,7 @@ class PinHelper : Form
         var hint = new Label
         {
             Left = 24, Top = 258, Width = 508, Height = 40,
-            Text = "Tip: you can also drag a folder from the main window straight onto the taskbar.",
+            Text = "Windows doesn't let apps pin themselves, so this one-time step is needed for each folder.",
             ForeColor = p.SubText
         };
 

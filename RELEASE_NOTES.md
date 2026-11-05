@@ -1,4 +1,4 @@
-# Taskbar Folders — v1.3.0-beta
+# Taskbar Folders — v1.4.0-beta
 
 **Release Date:** November 2026
 
@@ -6,16 +6,15 @@
 
 ### English
 
-Major update of **Taskbar Folders**.
+Update **1.4** of Taskbar Folders.
 
-#### What's new in 1.3
-- **Folder colours** — automatic, 12 presets or any custom colour
-- **Add apps from Start menu** — searchable picker + “+ Add apps” button inside the menu
-- **Drag & drop** — drop apps onto folders or between folders (hold Ctrl to copy)
-- **Easier pinning** — Pin button, Drag-to-taskbar handle, drag folder row, automatic “Pinned ✓”
-- **Opening animations** — Slide+Fade, Slide, Fade, Zoom or None (global + per-folder)
-- **Themes** — Windows 11 (system + accent), Light, Dark, Aurora, Sunset, Forest, Midnight
-- **Settings page** — appearance, animation, Windows integration, data folder, contact links
+#### What's new
+- **Scan this PC** — scans Start-menu apps, automatically categorises them (AI, Development, Browsers, Media, Office, Games, System Tools…) and can create one folder per category
+- Fixed the crash when switching to 2/3/4-column layout
+- **Drag to taskbar** now properly starts a drag operation
+- **Pin flow fixed** — opens the shortcut in Explorer already selected and shows a clear helper
+- Only one manager window at a time (reopening focuses the existing one)
+- Automatic config backup (`config.backup.json`)
 
 #### Requirements
 - Windows 11
@@ -23,27 +22,23 @@ Major update of **Taskbar Folders**.
 
 #### How to use
 1. Place `TaskbarFolders.exe` in a permanent folder.
-2. Create a folder → add apps (drag & drop / Start menu / + Add apps).
-3. Optionally set colour, icon, layout and animation.
-4. Click **Pin to taskbar** (or drag the folder).
-5. Click the pinned icon to open the menu.
-
-> Older pinned folders continue to work if the exe path stays the same.
+2. Create folders or use **Scan PC…** to auto-organise apps.
+3. Pin a folder with the Pin button or by dragging.
+4. Click the pinned icon to open the menu.
 
 ---
 
 ### فارسی
 
-نسخه بزرگ **Taskbar Folders 1.3**
+نسخه **۱.۴** از Taskbar Folders
 
 #### تغییرات این نسخه
-- **رنگ فولدر** — خودکار، ۱۲ پیش‌فرض یا رنگ دلخواه
-- **افزودن از منوی استارت** — جستجو + دکمه «+ Add apps» داخل منو
-- **درگ و دراپ** — انداختن اپ روی فولدر یا بین فولدرها (Ctrl برای کپی)
-- **پین آسان‌تر** — دکمه Pin، دسته Drag-to-taskbar، کشیدن ردیف فولدر، تشخیص خودکار «Pinned ✓»
-- **انیمیشن باز شدن** — Slide+Fade، Slide، Fade، Zoom یا بدون انیمیشن
-- **تم‌ها** — ویندوز ۱۱ (سیستم + رنگ تاکید)، روشن، تاریک، Aurora، Sunset، Forest، Midnight
-- **صفحه تنظیمات** — ظاهر، انیمیشن، یکپارچگی با ویندوز، پوشه داده و راه‌های ارتباطی
+- **اسکن این کامپیوتر** — اسکن اپ‌های منوی استارت، دسته‌بندی خودکار (AI، توسعه، مرورگر، رسانه، آفیس، بازی…) و امکان ساخت خودکار یک فولدر برای هر دسته
+- رفع کرش هنگام تغییر به چیدمان ۲/۳/۴ ستونه
+- **کشیدن به تسک‌بار** حالا واقعاً کار می‌کند
+- **جریان پین اصلاح شد** — شورتکات را در اکسپلورر از قبل انتخاب‌شده باز می‌کند و راهنمای مرحله‌به‌مرحله نشان می‌دهد
+- فقط یک پنجره مدیر در هر لحظه
+- پشتیبان خودکار از تنظیمات (`config.backup.json`)
 
 #### نیازمندی‌ها
 - ویندوز ۱۱
@@ -51,7 +46,6 @@ Major update of **Taskbar Folders**.
 
 #### نحوه استفاده
 1. فایل exe را در یک پوشه دائمی قرار دهید.
-2. فولدر بسازید → اپ‌ها را اضافه کنید (درگ‌اند‌دراپ / منوی استارت / + Add apps).
-3. در صورت تمایل رنگ، آیکون، چیدمان و انیمیشن را تنظیم کنید.
-4. روی **Pin to taskbar** کلیک کنید (یا فولدر را بکشید).
-5. روی آیکون پین‌شده کلیک کنید تا منو باز شود.
+2. فولدر بسازید یا از **Scan PC…** برای دسته‌بندی خودکار استفاده کنید.
+3. فولدر را با دکمه Pin یا کشیدن پین کنید.
+4. روی آیکون پین‌شده کلیک کنید تا منو باز شود.
