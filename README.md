@@ -17,17 +17,17 @@ This small tool solves that problem without any background process or tray icon.
 
 ---
 
-### What's new in 1.3
+### What's new in 1.4
 
 | # | Feature |
 |---|---------|
-| 1 | **Folder colours** — automatic theme colour, 12 presets or any custom colour |
-| 2 | **Add apps from the Start menu** — searchable picker + “+ Add apps” inside the menu |
-| 3 | **Drag & drop** — drop apps onto folders or between folders (Ctrl to copy) |
-| 4 | **Easier pinning** — Pin button, Drag-to-taskbar handle, drag folder row, auto “Pinned ✓” |
-| 5 | **Opening animations** — Slide+Fade, Slide, Fade, Zoom or None (per-folder override) |
-| 6 | **Themes** — Windows 11 (follows system + accent), Light, Dark, Aurora, Sunset, Forest, Midnight |
-| 7 | **Settings page** — appearance, animation, Windows integration, data folder, contact links |
+| 1 | **Scan this PC** — scans Start-menu apps, auto-tags them (AI, Development, Browsers, Media, Office, Games…) and can create one folder per category |
+| 2 | Fixed the 2/3/4-column crash |
+| 3 | **Drag to taskbar** now actually starts a proper drag |
+| 4 | **Pin flow fixed** — opens the shortcut in Explorer already selected + step-by-step helper |
+| 5 | **Single manager instance** — reopening brings the existing window forward |
+| 6 | **Config backup** — every save keeps `config.backup.json` |
+| 7 | All previous features (colours, themes, animations, Start-menu picker, drag & drop…) |
 
 ---
 
@@ -50,10 +50,11 @@ This small tool solves that problem without any background process or tray icon.
 ### How to use
 
 1. Download `TaskbarFolders.exe` and put it in a **permanent** location (e.g. `C:\Tools\TaskbarFolders\`).
-2. Run the program → create a folder → add apps (drag & drop, Start menu picker, or “+ Add apps”).
-3. (Optional) Set folder colour, icon, layout and animation.
-4. Click **Pin to taskbar** (or drag the folder / use the drag handle).
-5. Click the pinned icon on the taskbar anytime to open the menu.
+2. Run the program → create a folder or use **Scan PC…** to auto-organise.
+3. Add apps (drag & drop, Start menu, Scan, or “+ Add apps”).
+4. (Optional) Set colour, icon, layout and animation.
+5. Click **Pin to taskbar** (or use Drag to taskbar / drag the folder row).
+6. Click the pinned icon on the taskbar anytime to open the menu.
 
 > Already pinned folders from older versions keep working if the exe stays at the same path.
 

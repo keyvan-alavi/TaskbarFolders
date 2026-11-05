@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using System.Threading;
 
 namespace TaskbarFolders;
 
@@ -132,6 +133,14 @@ public class Config
         try
         {
             Directory.CreateDirectory(Dir);
+
+            // Keep the last configuration that actually had folders; protects against an accidental
+            // empty save wiping days of folder setup.
+            if (Folders.Count > 0 && File.Exists(FilePath))
+            {
+                try { File.Copy(FilePath, System.IO.Path.Combine(Dir, "config.backup.json"), true); } catch { }
+            }
+
             var tmp = FilePath + ".tmp";
             File.WriteAllText(tmp, JsonSerializer.Serialize(this, Opts));
             File.Move(tmp, FilePath, true);
@@ -161,6 +170,10 @@ static class ErrorLog
 
 static class Program
 {
+    static Mutex? managerMutex;
+    public static string ManagerPipeName => "TaskbarFolders.Manager." + Environment.UserName;
+    static string ManagerMutexName => "TaskbarFolders.Manager.Mutex." + Environment.UserName;
+
     public static string Version
     {
         get
@@ -217,11 +230,20 @@ static class Program
                 }
 
                 case "--settings":
+                    if (!BecomeManager("@settings")) return;
                     Application.Run(new Manager(cfg, openSettings: true));
                     return;
 
+                case "--manage":
+                {
+                    string? id = args.Length > 1 ? args[1] : null;
+                    if (!BecomeManager(id)) return;
+                    Application.Run(new Manager(cfg, selectFolderId: id));
+                    return;
+                }
 
                 default:
+                    if (!BecomeManager(null)) return;
                     Application.Run(new Manager(cfg));
                     return;
             }
@@ -241,4 +263,35 @@ static class Program
         catch (Exception ex) { ErrorLog.Write(ex); }
     }
 
+    /// <summary>Becomes the single manager instance. If one exists, focuses it and returns false.</summary>
+    static bool BecomeManager(string? request)
+    {
+        managerMutex = new Mutex(true, ManagerMutexName, out bool created);
+        if (created) return true;
+
+        // Another manager owns the mutex: ask it to come forward, but never open a duplicate.
+        managerMutex.Dispose();
+        managerMutex = null;
+        for (int i = 0; i < 12; i++)
+        {
+            if (TryFocusManager(request)) break;
+            Thread.Sleep(120);
+        }
+        return false;
+    }
+
+    /// <summary>Tells the running manager to come to front and optionally select a folder.</summary>
+    public static bool TryFocusManager(string? request)
+    {
+        try
+        {
+            using var client = new System.IO.Pipes.NamedPipeClientStream(
+                ".", ManagerPipeName, System.IO.Pipes.PipeDirection.Out, System.IO.Pipes.PipeOptions.None);
+            client.Connect(450);
+            using var writer = new StreamWriter(client) { AutoFlush = true };
+            writer.Write(request ?? "");
+            return true;
+        }
+        catch { return false; }
+    }
 }

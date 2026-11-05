@@ -439,6 +439,7 @@ public class OptionButton : FlatButton
 {
     public string[] Options = Array.Empty<string>();
     int selected;
+    ContextMenuStrip? currentMenu;
     public event EventHandler? SelectionChanged;
 
     public OptionButton()
@@ -465,6 +466,13 @@ public class OptionButton : FlatButton
     {
         base.OnClick(e);
         if (Options.Length == 0) return;
+
+        // Dispose the previous menu only when it is definitely closed; disposing it from its
+        // own Closed handler makes WinForms touch the disposed strip while unwinding the click.
+        var old = currentMenu;
+        currentMenu = null;
+        old?.Dispose();
+
         var p = ThemeManager.P;
         var menu = new ContextMenuStrip
         {
@@ -482,8 +490,18 @@ public class OptionButton : FlatButton
             };
             menu.Items.Add(item);
         }
-        menu.Closed += (_, _) => menu.Dispose();
+        currentMenu = menu;
         menu.Show(this, new Point(0, Height + 2));
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            currentMenu?.Dispose();
+            currentMenu = null;
+        }
+        base.Dispose(disposing);
     }
 }
 

@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Drawing.Drawing2D;
+using System.IO.Pipes;
+using System.Threading;
 
 namespace TaskbarFolders;
 
@@ -52,6 +54,7 @@ public class Manager : Form
     readonly FlatButton btnPin;
     readonly FlatButton btnAdd;
     readonly FlatButton btnStart;
+    readonly FlatButton btnScan;
     readonly FlatButton btnColor;
     readonly FlatButton btnIcon;
     readonly FlatButton btnSettings;
@@ -69,11 +72,16 @@ public class Manager : Form
     int dropIndex = -1;
     Point dragOrigin;
     int dragIndex = -1;
+    bool dragBtnDown;
+    Point dragBtnOrigin;
+    NamedPipeServerStream? pipeServer;
+    Thread? pipeThread;
+    volatile bool pipeRunning;
     PinHelper? pinHelper;
 
     int S(int v) => (int)Math.Round(v * DeviceDpi / 96f);
 
-    public Manager(Config config, bool openSettings = false)
+    public Manager(Config config, bool openSettings = false, string? selectFolderId = null)
     {
         cfg = config;
         var p = ThemeManager.P;
@@ -190,8 +198,20 @@ public class Manager : Form
         };
         btnPin = new FlatButton { Text = "Pin to taskbar", Width = 150, Height = 38, Primary = true, Margin = new Padding(0, 0, 8, 0) };
         btnPin.Click += (_, _) => PinCurrent();
-        var btnDrag = new FlatButton { Text = "Drag to taskbar", Width = 136, Height = 38, Ghost = true, Margin = new Padding(0) };
-        btnDrag.MouseDown += (_, e) => { if (e.Button == MouseButtons.Left) BeginFolderDrag(); };
+        var btnDrag = new FlatButton { Text = "Drag to taskbar", Width = 136, Height = 38, Ghost = true, Margin = new Padding(0), Cursor = Cursors.SizeAll };
+        btnDrag.MouseDown += (_, e) =>
+        {
+            if (e.Button == MouseButtons.Left) { dragBtnDown = true; dragBtnOrigin = e.Location; }
+        };
+        btnDrag.MouseMove += (_, e) =>
+        {
+            if (!dragBtnDown || e.Button != MouseButtons.Left) return;
+            if (Math.Abs(e.X - dragBtnOrigin.X) < SystemInformation.DragSize.Width &&
+                Math.Abs(e.Y - dragBtnOrigin.Y) < SystemInformation.DragSize.Height) return;
+            dragBtnDown = false;
+            if (Current is { } fld) StartDrag(fld, btnDrag);
+        };
+        btnDrag.MouseUp += (_, _) => dragBtnDown = false;
         pinHost.Controls.Add(btnPin);
         pinHost.Controls.Add(btnDrag);
 
@@ -202,13 +222,15 @@ public class Manager : Form
         var actions = new Panel { Dock = DockStyle.Top, Height = 46, BackColor = p.Bg };
         btnAdd = new FlatButton { Text = "+  Add apps", Left = 0, Top = 6, Width = 116, Height = 34 };
         btnStart = new FlatButton { Text = "Start menu…", Left = 122, Top = 6, Width = 118, Height = 34 };
-        btnColor = new FlatButton { Text = "Colour…", Left = 246, Top = 6, Width = 92, Height = 34 };
-        btnIcon = new FlatButton { Text = "Icon…", Left = 344, Top = 6, Width = 80, Height = 34 };
+        btnScan = new FlatButton { Text = "Scan PC…", Left = 246, Top = 6, Width = 92, Height = 34 };
+        btnColor = new FlatButton { Text = "Colour…", Left = 344, Top = 6, Width = 92, Height = 34 };
+        btnIcon = new FlatButton { Text = "Icon…", Left = 442, Top = 6, Width = 80, Height = 34 };
         btnAdd.Click += (_, _) => AddDialog();
         btnStart.Click += (_, _) => AddFromStartMenu();
+        btnScan.Click += (_, _) => ScanPc();
         btnColor.Click += (_, _) => ChangeColor();
         btnIcon.Click += (_, _) => ChangeIcon();
-        actions.Controls.AddRange(new Control[] { btnAdd, btnStart, btnColor, btnIcon });
+        actions.Controls.AddRange(new Control[] { btnAdd, btnStart, btnScan, btnColor, btnIcon });
 
         var settingsRow = new Panel { Dock = DockStyle.Top, Height = 46, BackColor = p.Bg };
         var viewLabel = new Label { Text = "Menu view", Left = 0, Top = 16, AutoSize = true, ForeColor = p.SubText, Font = new Font("Segoe UI", 8.5f), Tag = "sub" };
@@ -318,8 +340,21 @@ public class Manager : Form
 
         ThemeManager.Apply(this);
         ApplyOwnColors();
-        foreach (var f in cfg.Folders) previews[f.Id] = IconBuilder.Render(f, S(64));
+        foreach (var f in cfg.Folders)
+        {
+            try
+            {
+                if (!File.Exists(IconBuilder.IcoPath(f))) IconBuilder.BuildIcon(f);
+            }
+            catch (Exception ex) { ErrorLog.Write(ex); }
+            previews[f.Id] = IconBuilder.Render(f, S(64));
+        }
         RefreshFolders(cfg.Folders.Count > 0 ? 0 : -1);
+        if (!string.IsNullOrEmpty(selectFolderId))
+        {
+            int idx = cfg.Folders.FindIndex(x => x.Id == selectFolderId);
+            if (idx >= 0) lbFolders.SelectedIndex = idx;
+        }
         UpdateButtons();
         SetStatus("Tip: drag apps from Explorer or the Start menu onto a folder on the left.");
 
@@ -333,6 +368,8 @@ public class Manager : Form
         FormClosing += (_, _) => pinWatch.Stop();
         FormClosed += (_, _) =>
         {
+            pipeRunning = false;
+            try { pipeServer?.Dispose(); } catch { }
             pinWatch.Dispose();
             foreach (var b in previews.Values) b.Dispose();
             foreach (var b in rowIcons) b.Dispose();
@@ -359,6 +396,62 @@ public class Manager : Form
     {
         base.OnHandleCreated(e);
         Native.SetDarkTitle(Handle, ThemeManager.P.Dark);
+        StartPipeServer();
+    }
+
+    void StartPipeServer()
+    {
+        if (pipeThread != null) return;
+        pipeRunning = true;
+        pipeThread = new Thread(PipeLoop) { IsBackground = true, Name = "TaskbarFolders.ManagerPipe" };
+        pipeThread.Start();
+    }
+
+    void PipeLoop()
+    {
+        while (pipeRunning)
+        {
+            try
+            {
+                var server = new NamedPipeServerStream(Program.ManagerPipeName, PipeDirection.In, 1,
+                    PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+                pipeServer = server;
+                server.WaitForConnection();
+
+                string request;
+                using (var reader = new StreamReader(server)) request = reader.ReadToEnd().Trim();
+                server.Dispose();
+                pipeServer = null;
+
+                if (!pipeRunning) break;
+                if (!IsDisposed && IsHandleCreated)
+                    BeginInvoke(new Action(() => ApplyExternalFocus(request)));
+            }
+            catch
+            {
+                if (!pipeRunning) break;
+                try { pipeServer?.Dispose(); } catch { }
+                pipeServer = null;
+                Thread.Sleep(120);
+            }
+        }
+    }
+
+    /// <summary>Another instance (or the folder menu's "Manage") asked us to come to the front.</summary>
+    void ApplyExternalFocus(string request)
+    {
+        if (IsDisposed || Disposing) return;
+        if (request == "@settings") { OpenSettings(); return; }
+
+        if (!string.IsNullOrEmpty(request))
+        {
+            int idx = cfg.Folders.FindIndex(x => x.Id == request);
+            if (idx >= 0) lbFolders.SelectedIndex = idx;
+        }
+        if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+        Show();
+        Activate();
+        Native.SetForegroundWindow(Handle);
     }
 
     protected override void OnDpiChanged(DpiChangedEventArgs e)
@@ -428,7 +521,7 @@ public class Manager : Form
 
         var f = cfg.Folders[dragIndex];
         dragIndex = -1;
-        StartDrag(f);
+        StartDrag(f, lbFolders);
     }
 
     void DrawFolder(object? sender, DrawItemEventArgs e)
@@ -593,6 +686,7 @@ public class Manager : Form
         var f = Current;
         bool on = f != null;
         btnAdd.Enabled = btnStart.Enabled = btnColor.Enabled = btnIcon.Enabled = btnPin.Enabled = on;
+        btnScan.Enabled = true;
         cbView.Enabled = chkNames.Enabled = on;
     }
 
@@ -729,6 +823,32 @@ public class Manager : Form
     }
 
     // ---------------- item actions ----------------
+
+    void ScanPc()
+    {
+        int before = cfg.Folders.Count;
+        using var scan = new ScanForm(cfg, Current?.Id);
+        scan.ShowDialog(this);
+        if (!scan.Changed) return;
+
+        foreach (var b in previews.Values) b.Dispose();
+        previews.Clear();
+        foreach (var f in cfg.Folders)
+        {
+            try
+            {
+                if (!File.Exists(IconBuilder.IcoPath(f))) IconBuilder.BuildIcon(f);
+            }
+            catch (Exception ex) { ErrorLog.Write(ex); }
+            previews[f.Id] = IconBuilder.Render(f, S(64));
+        }
+
+        int idx = Math.Clamp(lbFolders.SelectedIndex, 0, Math.Max(0, cfg.Folders.Count - 1));
+        RefreshFolders(cfg.Folders.Count > 0 ? idx : -1);
+        FillItems();
+        UpdateHeader();
+        SetStatus($"Scan finished — {Math.Max(0, cfg.Folders.Count - before)} new folder(s), {cfg.Folders.Sum(f => f.Items.Count)} apps in total.");
+    }
 
     void AddDialog()
     {
@@ -890,20 +1010,14 @@ public class Manager : Form
 
     // ---------------- taskbar ----------------
 
-    void BeginFolderDrag()
-    {
-        var f = Current;
-        if (f != null) StartDrag(f);
-    }
-
-    async void StartDrag(Folder f)
+    async void StartDrag(Folder f, Control source)
     {
         string lnk;
         try { lnk = Pinning.EnsureShortcut(f); }
         catch (Exception ex) { ErrorLog.Write(ex); return; }
 
         SetStatus($"Drop “{f.Name}” on empty taskbar space to pin it.");
-        lbFolders.DoDragDrop(new DataObject(DataFormats.FileDrop, new[] { lnk }),
+        source.DoDragDrop(new DataObject(DataFormats.FileDrop, new[] { lnk }),
             DragDropEffects.Copy | DragDropEffects.Link);
 
         for (int i = 0; i < 10; i++)
@@ -916,7 +1030,7 @@ public class Manager : Form
         if (Pinning.IsPinned(f)) SetStatus($"“{f.Name}” is pinned to the taskbar.");
     }
 
-    async void PinCurrent()
+    void PinCurrent()
     {
         var f = Current;
         if (f == null) return;
@@ -932,17 +1046,11 @@ public class Manager : Form
         try
         {
             var lnk = Pinning.EnsureShortcut(f);
-            Pinning.TryVerbPin(lnk);
-            SetStatus("Asking Windows to pin the folder…");
 
-            for (int i = 0; i < 8 && !Pinning.IsPinned(f); i++) await Task.Delay(140);
-            lbFolders.Invalidate();
-            UpdateHeader();
-            if (Pinning.IsPinned(f))
-            {
-                SetStatus($"“{f.Name}” is pinned to the taskbar.");
-                return;
-            }
+            // Windows 11 refuses programmatic pinning: open the shortcut in Explorer, selected,
+            // and show the one-step instruction. (The old "taskbarpin" verb just launched the folder.)
+            Pinning.ShowInExplorer(lnk);
+            SetStatus("In Explorer: right-click the selected shortcut › Show more options › Pin to taskbar.");
 
             if (pinHelper is { IsDisposed: false })
             {
@@ -957,7 +1065,7 @@ public class Manager : Form
                 UpdateHeader();
             };
             pinHelper.Show(this);
-            SetStatus("Drag the icon onto the taskbar (or use the shortcut menu) to finish pinning.");
+            SetStatus("Right-click the selected shortcut in Explorer › Show more options › Pin to taskbar (or drag the icon).");
         }
         catch (Exception ex)
         {

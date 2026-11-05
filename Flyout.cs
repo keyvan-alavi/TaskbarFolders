@@ -539,7 +539,16 @@ public class Flyout : Form
 
     void OpenManager()
     {
-        try { Process.Start(new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = true }); } catch { }
+        try
+        {
+            // One manager only: if it is already running, bring it forward with this folder selected.
+            if (!Program.TryFocusManager(folder.Id))
+                Process.Start(new ProcessStartInfo(Environment.ProcessPath!, $"--manage {folder.Id}")
+                {
+                    UseShellExecute = true
+                });
+        }
+        catch (Exception ex) { ErrorLog.Write(ex); }
         Close();
     }
 
