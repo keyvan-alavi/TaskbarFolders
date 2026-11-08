@@ -1,4 +1,4 @@
-name: Build & Pre-Release
+name: Build & Release
 
 on:
   push:
@@ -25,24 +25,32 @@ jobs:
         run: |
           dotnet publish -c Release -o publish
 
-      - name: Create Pre-Release
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: publish/TaskbarFolders.exe
-          prerelease: true
+          prerelease: false
           generate_release_notes: true
           body: |
             ### Taskbar Folders ${{ github.ref_name }}
 
-            Thank you for trying the beta!
+            First stable release.
+
+            **Highlights:**
+            - Scan this PC with automatic categories
+            - Custom folder colours & icons
+            - Multiple themes + animations
+            - Easy pinning with auto detection
+            - Almost zero idle RAM usage
 
             **Requirements:**
             - Windows 11
             - [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) (x64)
 
             **How to use:**
-            1. Put `TaskbarFolders.exe` in a permanent folder (e.g. `C:\Tools\TaskbarFolders\`)
-            2. Run it and create your folders
-            3. Create taskbar shortcut → Pin it to the taskbar
+            1. Put `TaskbarFolders.exe` in a permanent folder
+            2. Run it and create folders (or use Scan PC)
+            3. Pin the folder to the taskbar
+            4. Click the pinned icon to open the menu
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

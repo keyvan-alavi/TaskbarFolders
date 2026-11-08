@@ -32,9 +32,9 @@ This small tool solves that problem without any background process or tray icon.
 
 ### Screenshots
 
-| Manager | Pin Taskbar |
+| Manager | Scan PC |
 |---------|---------|
-| ![Manager](assets/screenshot-01-manager.png) | ![Pin](assets/screenshot-02-scan.png) |
+| ![Manager](assets/screenshot-01-manager.png) | ![Scan](assets/screenshot-02-scan.png) |
 
 | Flyout Menu | Settings / Themes |
 |-------------|-------------------|
@@ -44,7 +44,9 @@ This small tool solves that problem without any background process or tray icon.
 
 ### Demo Video
 
-> A short overview of the program will be available here.
+A short overview of the program:
+
+[▶️ Watch Demo](assets/demo.mp4)
 
 ---
 
