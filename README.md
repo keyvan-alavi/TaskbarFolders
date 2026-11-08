@@ -6,7 +6,7 @@
 [![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2011-0078D6?logo=windows)](https://www.microsoft.com/windows)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Release](https://img.shields.io/github/v/release/keyvan-alavi/TaskbarFolders?include_prereleases)](https://github.com/keyvan-alavi/TaskbarFolders/releases)
+[![Release](https://img.shields.io/github/v/release/keyvan-alavi/TaskbarFolders)](https://github.com/keyvan-alavi/TaskbarFolders/releases)
 
 ---
 
@@ -17,26 +17,34 @@ This small tool solves that problem without any background process or tray icon.
 
 ---
 
-### What's new in 1.4
+### Features
 
-| # | Feature |
-|---|---------|
-| 1 | **Scan this PC** — scans Start-menu apps, auto-tags them (AI, Development, Browsers, Media, Office, Games…) and can create one folder per category |
-| 2 | Fixed the 2/3/4-column crash |
-| 3 | **Drag to taskbar** now actually starts a proper drag |
-| 4 | **Pin flow fixed** — opens the shortcut in Explorer already selected + step-by-step helper |
-| 5 | **Single manager instance** — reopening brings the existing window forward |
-| 6 | **Config backup** — every save keeps `config.backup.json` |
-| 7 | All previous features (colours, themes, animations, Start-menu picker, drag & drop…) |
+- Create unlimited folders with custom colours and icons
+- **Scan this PC** — auto-categorise Start-menu apps and create folders by category
+- Add apps from Start menu, drag & drop, or “+ Add apps”
+- Flexible layout: 1–4 columns (list or icon grid)
+- Themes: Windows 11 (system + accent), Light, Dark, Aurora, Sunset, Forest, Midnight
+- Opening animations (Slide, Fade, Zoom…)
+- Easy pinning with automatic “Pinned ✓” detection
+- Almost zero RAM usage when idle
 
 ---
 
 ### Screenshots
 
-| Manager | Flyout |
-|---------|--------|
-| ![Manager](assets/screenshot-manager.png) | ![Flyout](assets/screenshot-flyout.png) |
+| Manager | Pin Taskbar |
+|---------|---------|
+| ![Manager](assets/screenshot-01-manager.png) | ![Pin](assets/screenshot-02-scan.png) |
 
+| Flyout Menu | Settings / Themes |
+|-------------|-------------------|
+| ![Flyout](assets/screenshot-03-flyout.png) | ![Settings](assets/screenshot-04-settings.png) |
+
+---
+
+### Demo Video
+
+> A short overview of the program will be available here.
 
 ---
 
@@ -53,10 +61,8 @@ This small tool solves that problem without any background process or tray icon.
 2. Run the program → create a folder or use **Scan PC…** to auto-organise.
 3. Add apps (drag & drop, Start menu, Scan, or “+ Add apps”).
 4. (Optional) Set colour, icon, layout and animation.
-5. Click **Pin to taskbar** (or use Drag to taskbar / drag the folder row).
+5. Click **Pin to taskbar** (or use Drag to taskbar).
 6. Click the pinned icon on the taskbar anytime to open the menu.
-
-> Already pinned folders from older versions keep working if the exe stays at the same path.
 
 ---
 

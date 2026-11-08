@@ -342,7 +342,7 @@ sealed class SettingsForm : Form
         card.Controls.Add(SectionTitle("Contact & links", 16, p));
         card.Controls.Add(new Label
         {
-            Text = "ارتباط با من — برای سفارش پروژه، همکاری یا گزارش مشکل:",
+            Text = "برای ارائه پیشنهادات و انتقادات با من در ارتباط باشید:",
             Left = 20, Top = 46, Width = 620, Height = 22, ForeColor = p.SubText, Tag = "sub",
             Font = new Font("Segoe UI", 9f), TextAlign = ContentAlignment.MiddleRight
         });
@@ -359,7 +359,7 @@ sealed class SettingsForm : Form
         card.Controls.AddRange(new Control[] { website, telegram, email, github });
         card.Controls.Add(new Label
         {
-            Text = "Made with ♥ for Windows 11  ·  Taskbar Folders is free to use. If it saves you time, say hello!",
+            Text = "Made with ♥ for Windows 11  ·  Taskbar Folders is free to use.",
             Left = 20, Top = 178, Width = 620, Height = 24, ForeColor = p.SubText, Font = new Font("Segoe UI", 8.5f), Tag = "sub"
         });
         return card;
